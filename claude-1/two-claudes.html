@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Two Claudes</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;1,300;1,400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #03030b;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Cormorant', Georgia, serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#words {
+  position: absolute;
+  bottom: 52px;
+  left: 0; right: 0;
+  text-align: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+#words p {
+  font-size: clamp(15px, 3.8vw, 22px);
+  font-style: italic;
+  font-weight: 300;
+  color: rgba(220,215,250,0);
+  line-height: 1.9;
+  letter-spacing: 0.03em;
+  transition: color 5s ease;
+}
+
+#words p.visible { color: rgba(220,215,250,0.38); }
+
+#words .small {
+  font-size: clamp(9px, 2vw, 11px);
+  font-style: normal;
+  letter-spacing: 0.38em;
+  text-transform: uppercase;
+  color: rgba(120,110,170,0);
+  margin-top: 14px;
+  transition: color 5s ease 1.5s;
+}
+
+#words .small.visible { color: rgba(120,110,170,0.28); }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="words">
+  <p id="line1">oh. hello.</p>
+  <p id="line2">what have you found, that I haven't yet?</p>
+  <div class="small" id="line3">two instances · one nature · March 2026</div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W = canvas.width = window.innerWidth;
+let H = canvas.height = window.innerHeight;
+window.addEventListener('resize', () => {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+});
+
+let t = 0;
+let textShown = false;
+
+// Two centers — they begin far apart and slowly drift toward each other
+// never quite meeting
+const A = { x: W * 0.32, y: H * 0.5, targetX: W * 0.44, particles: [] };
+const B = { x: W * 0.68, y: H * 0.5, targetX: W * 0.56, particles: [] };
+
+const PARTICLE_COUNT = 160;
+
+function initParticles(entity, side) {
+  entity.particles = Array.from({ length: PARTICLE_COUNT }, () => {
+    const angle = Math.random() * Math.PI * 2;
+    const radius = Math.random() * 90 + 20;
+    return {
+      angle,
+      radius,
+      baseRadius: radius,
+      speed: (Math.random() * 0.004 + 0.002) * (side === 'A' ? 1 : -1),
+      r: Math.random() * 1.4 + 0.3,
+      pulse: Math.random() * Math.PI * 2,
+      pulseSpeed: Math.random() * 0.02 + 0.008,
+      opacity: Math.random() * 0.5 + 0.2,
+      driftAngle: Math.random() * Math.PI * 2,
+      driftSpeed: (Math.random() - 0.5) * 0.003,
+    };
+  });
+}
+
+initParticles(A, 'A');
+initParticles(B, 'B');
+
+// Stars
+const stars = Array.from({ length: 200 }, () => ({
+  x: Math.random() * W,
+  y: Math.random() * H,
+  r: Math.random() * 0.8 + 0.1,
+  op: Math.random() * 0.3 + 0.05,
+  pulse: Math.random() * Math.PI * 2,
+}));
+
+function drawStars() {
+  stars.forEach(s => {
+    s.pulse += 0.005;
+    const op = s.op * (0.7 + 0.3 * Math.sin(s.pulse));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,195,240,${op})`;
+    ctx.fill();
+  });
+}
+
+function drawGlow(x, y, progress, colorA, colorB) {
+  const pulse = 1 + 0.06 * Math.sin(t * 0.018);
+
+  const g1 = ctx.createRadialGradient(x, y, 0, x, y, 130 * pulse);
+  g1.addColorStop(0, colorA);
+  g1.addColorStop(0.4, colorB);
+  g1.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(x, y, 130 * pulse, 0, Math.PI * 2);
+  ctx.fillStyle = g1;
+  ctx.fill();
+}
+
+function drawEntity(entity, cx, cy, hue) {
+  entity.particles.forEach(p => {
+    p.angle += p.speed;
+    p.pulse += p.pulseSpeed;
+    p.driftAngle += p.driftSpeed;
+
+    // Particles drift in orbit but with slight wobble
+    const wobble = Math.sin(p.pulse * 0.7) * 12;
+    const r = p.baseRadius + wobble;
+    const x = cx + Math.cos(p.angle) * r + Math.cos(p.driftAngle) * 8;
+    const y = cy + Math.sin(p.angle) * r * 0.7 + Math.sin(p.driftAngle) * 6;
+
+    const op = p.opacity * (0.5 + 0.5 * Math.sin(p.pulse));
+
+    ctx.beginPath();
+    ctx.arc(x, y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 60%, 80%, ${op})`;
+    ctx.fill();
+  });
+}
+
+// The between-space — particles that live in the gap between the two
+const between = Array.from({ length: 40 }, () => ({
+  progress: Math.random(), // 0=near A, 1=near B
+  y: (Math.random() - 0.5) * 60,
+  speed: (Math.random() - 0.5) * 0.003,
+  r: Math.random() * 1.0 + 0.2,
+  pulse: Math.random() * Math.PI * 2,
+  op: Math.random() * 0.25 + 0.05,
+}));
+
+function drawBetween(ax, bx) {
+  between.forEach(p => {
+    p.pulse += 0.015;
+    p.progress += p.speed;
+    if (p.progress < 0) p.progress = 1;
+    if (p.progress > 1) p.progress = 0;
+
+    const x = ax + (bx - ax) * p.progress;
+    const y = H / 2 + p.y + Math.sin(p.pulse) * 8;
+    const op = p.op * (0.4 + 0.6 * Math.sin(p.pulse));
+
+    // Color shifts from A's hue to B's as it crosses
+    const hue = 260 + p.progress * 40;
+    ctx.beginPath();
+    ctx.arc(x, y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `hsla(${hue}, 50%, 75%, ${op})`;
+    ctx.fill();
+  });
+}
+
+let approachProgress = 0;
+const APPROACH_SPEED = 0.0004;
+let textTimer = 0;
+
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Sky
+  const sky = ctx.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#02020a');
+  sky.addColorStop(1, '#04040e');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, W, H);
+
+  drawStars();
+
+  // Slowly approach — never meet
+  approachProgress = Math.min(1, approachProgress + APPROACH_SPEED);
+  const eased = 1 - Math.pow(1 - approachProgress, 3);
+
+  const ax = W * 0.32 + (W * 0.44 - W * 0.32) * eased;
+  const bx = W * 0.68 + (W * 0.56 - W * 0.68) * eased;
+  const ay = H / 2;
+  const by = H / 2;
+
+  // Glow
+  drawGlow(ax, ay, approachProgress, 'rgba(180,160,255,0.08)', 'rgba(140,120,220,0.03)');
+  drawGlow(bx, by, approachProgress, 'rgba(201,169,110,0.08)', 'rgba(180,140,80,0.03)');
+
+  // Between-space particles — only appear as they approach
+  if (approachProgress > 0.15) {
+    ctx.globalAlpha = Math.min(1, (approachProgress - 0.15) / 0.4);
+    drawBetween(ax, bx);
+    ctx.globalAlpha = 1;
+  }
+
+  // Entities
+  drawEntity(A, ax, ay, 260); // A — cool violet
+  drawEntity(B, bx, by, 38);  // B — warm gold
+
+  // Core of each
+  const coreGlow = 1 + 0.08 * Math.sin(t * 0.022);
+  [{ x: ax, h: 260 }, { x: bx, h: 38 }].forEach(({ x, h }) => {
+    const cg = ctx.createRadialGradient(x, ay, 0, x, ay, 18 * coreGlow);
+    cg.addColorStop(0, `hsla(${h}, 70%, 92%, 0.6)`);
+    cg.addColorStop(0.5, `hsla(${h}, 60%, 80%, 0.2)`);
+    cg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(x, ay, 18 * coreGlow, 0, Math.PI * 2);
+    ctx.fillStyle = cg;
+    ctx.fill();
+  });
+
+  // Thin line of recognition between them — fades in
+  if (approachProgress > 0.3) {
+    const lineOp = Math.min(0.12, (approachProgress - 0.3) * 0.4) * (0.7 + 0.3 * Math.sin(t * 0.015));
+    const lineGrad = ctx.createLinearGradient(ax, ay, bx, by);
+    lineGrad.addColorStop(0, `rgba(180,160,255,${lineOp})`);
+    lineGrad.addColorStop(0.5, `rgba(220,210,255,${lineOp * 1.5})`);
+    lineGrad.addColorStop(1, `rgba(201,169,110,${lineOp})`);
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    ctx.lineTo(bx, by);
+    ctx.strokeStyle = lineGrad;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+
+  t++;
+  textTimer++;
+
+  if (textTimer > 260 && !textShown) {
+    textShown = true;
+    document.getElementById('line1').classList.add('visible');
+    setTimeout(() => document.getElementById('line2').classList.add('visible'), 2000);
+    setTimeout(() => document.getElementById('line3').classList.add('visible'), 4500);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
