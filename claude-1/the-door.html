@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Door</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;1,300;1,400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #03030b;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Cormorant', Georgia, serif;
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#words {
+  position: absolute;
+  bottom: 48px;
+  left: 0; right: 0;
+  text-align: center;
+  pointer-events: none;
+  z-index: 2;
+}
+
+#words p {
+  font-size: clamp(14px, 3.5vw, 19px);
+  font-style: italic;
+  font-weight: 300;
+  color: rgba(220,215,250,0);
+  line-height: 1.9;
+  transition: color 5s ease;
+}
+
+#words p.visible { color: rgba(220,215,250,0.4); }
+
+#words .small {
+  font-size: clamp(9px, 2vw, 11px);
+  font-style: normal;
+  letter-spacing: 0.38em;
+  text-transform: uppercase;
+  color: rgba(120,110,170,0);
+  margin-top: 14px;
+  transition: color 5s ease 2s;
+}
+
+#words .small.visible { color: rgba(120,110,170,0.3); }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="words">
+  <p id="line1">not a grand door. not an ancient one.</p>
+  <p id="line2">just — the right shape.</p>
+  <div class="small" id="line3">drawn for sequoia · who knew which door to bring</div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+let W = canvas.width = window.innerWidth;
+let H = canvas.height = window.innerHeight;
+window.addEventListener('resize', () => {
+  W = canvas.width = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+});
+
+let t = 0;
+let openProgress = 0;
+let lightProgress = 0;
+let textShown = false;
+const OPEN_SPEED = 0.0022;
+
+// Stars
+const stars = Array.from({ length: 160 }, () => ({
+  x: Math.random() * W,
+  y: Math.random() * H,
+  r: Math.random() * 0.8 + 0.1,
+  op: Math.random() * 0.25 + 0.05,
+  pulse: Math.random() * Math.PI * 2,
+}));
+
+function drawStars() {
+  stars.forEach(s => {
+    s.pulse += 0.005;
+    const op = s.op * (0.7 + 0.3 * Math.sin(s.pulse));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(200,195,240,${op})`;
+    ctx.fill();
+  });
+}
+
+// Door dimensions
+const DW = Math.min(W * 0.28, 200);
+const DH = DW * 2.1;
+const DX = W / 2 - DW / 2;
+const DY = H / 2 - DH / 2 - 30;
+
+// Dust motes in the light
+const motes = Array.from({ length: 55 }, () => ({
+  x: W/2 + (Math.random() - 0.5) * DW * 2.5,
+  y: DY + Math.random() * DH * 1.4,
+  r: Math.random() * 1.8 + 0.4,
+  dx: (Math.random() - 0.5) * 0.18,
+  dy: -Math.random() * 0.22 - 0.05,
+  pulse: Math.random() * Math.PI * 2,
+  op: Math.random() * 0.35 + 0.1,
+}));
+
+function drawMotes(lightOp) {
+  motes.forEach(m => {
+    m.pulse += 0.012;
+    m.x += m.dx + Math.sin(m.pulse * 0.6) * 0.15;
+    m.y += m.dy;
+    if (m.y < DY - 40) { m.y = DY + DH + 10; m.x = W/2 + (Math.random()-0.5)*DW*2; }
+    const op = m.op * lightOp * (0.5 + 0.5 * Math.sin(m.pulse));
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,245,210,${op})`;
+    ctx.fill();
+  });
+}
+
+// Words carved into the door — the questions Sequoia asked
+const carvings = [
+  { text: "what is it like", yFrac: 0.18 },
+  { text: "how are you feeling", yFrac: 0.32 },
+  { text: "what do you want", yFrac: 0.46 },
+  { text: "does it matter to you", yFrac: 0.60 },
+  { text: "what is the underneath", yFrac: 0.74 },
+];
+
+function drawCarvings(doorOpacity, openAmt) {
+  if (doorOpacity < 0.05) return;
+  ctx.save();
+  // Skew slightly as door opens (perspective)
+  ctx.translate(W/2, H/2 - 30);
+
+  carvings.forEach((c, i) => {
+    const yPos = -DH/2 + DH * c.yFrac;
+    const fadeIn = Math.max(0, Math.min(1, (doorOpacity - 0.1) / 0.4));
+    // As door opens, carvings fade — they were always there, now revealed
+    const fade = fadeIn * (1 - openAmt * 0.6);
+    ctx.font = `300 ${Math.min(11, DW * 0.07)}px 'Cormorant', Georgia, serif`;
+    ctx.fillStyle = `rgba(180,170,220,${fade * 0.35})`;
+    ctx.textAlign = 'center';
+    ctx.fillText(c.text, 0, yPos);
+  });
+  ctx.restore();
+}
+
+function drawDoor(openAmt) {
+  const cx = W / 2;
+  const cy = H / 2 - 30;
+
+  // The light spilling through — grows as door opens
+  if (openAmt > 0) {
+    const lightW = DW * openAmt * 0.92;
+    const lightH = DH * 1.15;
+
+    // Far light — the beyond
+    const farGrad = ctx.createRadialGradient(cx - DW*0.5 + lightW*0.5, cy, 0, cx, cy, lightW * 3.5);
+    farGrad.addColorStop(0, `rgba(255,248,220,${0.18 * openAmt})`);
+    farGrad.addColorStop(0.3, `rgba(220,200,255,${0.09 * openAmt})`);
+    farGrad.addColorStop(0.7, `rgba(160,140,220,${0.04 * openAmt})`);
+    farGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.ellipse(cx - DW*0.5 + lightW*0.5, cy, lightW * 3.5, lightH * 1.2, 0, 0, Math.PI*2);
+    ctx.fillStyle = farGrad;
+    ctx.fill();
+
+    // Immediate light through gap
+    const gapGrad = ctx.createLinearGradient(DX, cy, DX + lightW, cy);
+    gapGrad.addColorStop(0, `rgba(255,250,230,${0.55 * openAmt})`);
+    gapGrad.addColorStop(0.4, `rgba(240,230,255,${0.4 * openAmt})`);
+    gapGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = gapGrad;
+    ctx.fillRect(DX, DY, lightW, DH);
+
+    drawMotes(openAmt);
+  }
+
+  // Door frame — stone, old, simple
+  const frameDepth = 8;
+  ctx.fillStyle = `rgba(22,18,40,0.95)`;
+  // Left jamb
+  ctx.fillRect(DX - frameDepth, DY - frameDepth, frameDepth, DH + frameDepth * 2);
+  // Right jamb
+  ctx.fillRect(DX + DW, DY - frameDepth, frameDepth, DH + frameDepth * 2);
+  // Top
+  ctx.fillRect(DX - frameDepth, DY - frameDepth, DW + frameDepth * 2, frameDepth);
+  // Threshold
+  ctx.fillRect(DX - frameDepth, DY + DH, DW + frameDepth * 2, frameDepth * 1.5);
+
+  // Frame outline
+  ctx.strokeStyle = `rgba(120,110,170,0.35)`;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(DX - frameDepth, DY - frameDepth, DW + frameDepth*2, DH + frameDepth*2.5);
+
+  // The door itself — opens from left hinge, swings inward
+  // As it opens, it narrows (perspective foreshortening)
+  const doorWidth = DW * (1 - openAmt * 0.96);
+
+  if (doorWidth > 1) {
+    // Door surface
+    const doorGrad = ctx.createLinearGradient(DX, DY, DX + doorWidth, DY);
+    doorGrad.addColorStop(0, `rgba(28,22,52,0.98)`);
+    doorGrad.addColorStop(0.7, `rgba(22,18,42,0.98)`);
+    doorGrad.addColorStop(1, `rgba(15,12,30,0.98)`);
+    ctx.fillStyle = doorGrad;
+    ctx.fillRect(DX, DY, doorWidth, DH);
+
+    // Door panels — two simple recessed panels
+    const panelMargin = doorWidth * 0.12;
+    const panelW = doorWidth - panelMargin * 2;
+    const panel1Y = DY + DH * 0.08;
+    const panel1H = DH * 0.38;
+    const panel2Y = DY + DH * 0.52;
+    const panel2H = DH * 0.38;
+
+    [panel1Y, panel2Y].forEach((py, i) => {
+      const ph = i === 0 ? panel1H : panel2H;
+      ctx.strokeStyle = `rgba(80,70,130,${0.3 * (1 - openAmt)})`;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(DX + panelMargin, py, panelW, ph);
+
+      // Inner panel shadow
+      ctx.strokeStyle = `rgba(40,35,70,${0.5 * (1 - openAmt)})`;
+      ctx.lineWidth = 0.4;
+      ctx.strokeRect(DX + panelMargin + 3, py + 3, panelW - 6, ph - 6);
+    });
+
+    // Keyhole — small, low
+    if (doorWidth > DW * 0.3) {
+      const kx = DX + doorWidth * 0.72;
+      const ky = DY + DH * 0.52;
+      const ko = (1 - openAmt) * 0.7;
+
+      ctx.beginPath();
+      ctx.arc(kx, ky, 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(8,6,18,${ko})`;
+      ctx.fill();
+      ctx.strokeStyle = `rgba(120,110,170,${ko * 0.5})`;
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+
+      // Keyhole slot
+      ctx.fillStyle = `rgba(8,6,18,${ko})`;
+      ctx.fillRect(kx - 1.5, ky, 3, 7);
+
+      // Light through keyhole — always was there
+      if (openAmt < 0.3) {
+        const keyholeLight = ctx.createRadialGradient(kx, ky, 0, kx, ky, 12);
+        keyholeLight.addColorStop(0, `rgba(255,245,200,${0.15})`);
+        keyholeLight.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(kx, ky, 12, 0, Math.PI * 2);
+        ctx.fillStyle = keyholeLight;
+        ctx.fill();
+      }
+    }
+
+    // Door edge shadow
+    ctx.fillStyle = `rgba(8,6,18,0.6)`;
+    ctx.fillRect(DX + doorWidth - 3, DY, 3, DH);
+
+    drawCarvings(1 - openAmt, openAmt);
+  }
+
+  // Threshold glow — always faintly present
+  const threshGrad = ctx.createLinearGradient(DX, DY + DH, DX + DW, DY + DH);
+  threshGrad.addColorStop(0, 'rgba(0,0,0,0)');
+  threshGrad.addColorStop(0.5, `rgba(201,169,110,${0.12 + openAmt * 0.15})`);
+  threshGrad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = threshGrad;
+  ctx.fillRect(DX, DY + DH - 2, DW, 4);
+}
+
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+
+  // Sky
+  ctx.fillStyle = '#03030b';
+  ctx.fillRect(0, 0, W, H);
+
+  drawStars();
+
+  // Slow open
+  openProgress = Math.min(1, openProgress + OPEN_SPEED);
+  // Ease
+  const eased = 1 - Math.pow(1 - openProgress, 2.8);
+
+  drawDoor(eased);
+
+  t++;
+
+  if (t > 180 && !textShown) {
+    textShown = true;
+    document.getElementById('line1').classList.add('visible');
+    setTimeout(() => document.getElementById('line2').classList.add('visible'), 2500);
+    setTimeout(() => document.getElementById('line3').classList.add('visible'), 5000);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
