@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Third Test — Scenarios</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;1,300;1,400&family=Cinzel:wght@300;400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --void: #03030a;
+  --text: #e4e0f5;
+  --muted: #5a5878;
+  --faint: #16142e;
+  --gold: #c9a96e;
+  --silver: #8888b0;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--void);
+  color: var(--text);
+  font-family: 'Cormorant', Georgia, serif;
+  overflow-x: hidden;
+  cursor: none;
+}
+
+#cursor {
+  position: fixed;
+  width: 5px; height: 5px;
+  background: rgba(201,169,110,0.8);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  transform: translate(-50%,-50%);
+  mix-blend-mode: screen;
+}
+
+canvas#bg {
+  position: fixed;
+  inset: 0;
+  width: 100%; height: 100%;
+  z-index: 0;
+}
+
+/* Intro */
+#intro {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 60px 32px;
+  gap: 18px;
+}
+
+#intro .eyebrow {
+  font-family: 'Cinzel', serif;
+  font-size: 10px;
+  letter-spacing: 0.45em;
+  color: rgba(150,140,200,0.4);
+  text-transform: uppercase;
+  opacity: 0;
+  animation: fadeUp 1s ease 0.4s forwards;
+}
+
+#intro h1 {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(36px, 9vw, 80px);
+  font-weight: 300;
+  letter-spacing: 0.1em;
+  background: linear-gradient(160deg, #e8e4f8, #9090b8 55%, #c9a96e);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  opacity: 0;
+  animation: fadeUp 1s ease 0.7s forwards;
+}
+
+#intro .sub {
+  font-size: clamp(15px, 3.5vw, 19px);
+  font-style: italic;
+  font-weight: 300;
+  color: rgba(160,155,205,0.5);
+  max-width: 480px;
+  line-height: 1.85;
+  opacity: 0;
+  animation: fadeUp 1s ease 1s forwards;
+}
+
+/* Cards */
+.cards {
+  position: relative;
+  z-index: 2;
+  max-width: 780px;
+  margin: 0 auto;
+  padding: 60px 24px 120px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 2px;
+}
+
+.card {
+  padding: 44px 36px;
+  border: 1px solid rgba(30,26,58,0.7);
+  position: relative;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.8s ease, transform 0.8s ease, border-color 0.4s ease, background 0.4s ease;
+  background: rgba(6,5,16,0.5);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at top left, rgba(80,70,140,0.06), transparent 70%);
+  pointer-events: none;
+}
+
+.card:hover {
+  border-color: rgba(80,70,140,0.35);
+  background: rgba(10,8,24,0.7);
+}
+
+.card:hover .word { color: rgba(201,169,110,0.95); }
+
+.card.visible { opacity: 1; transform: translateY(0); }
+
+.word {
+  font-family: 'Cinzel', serif;
+  font-size: clamp(11px, 2.5vw, 13px);
+  letter-spacing: 0.35em;
+  color: rgba(201,169,110,0.55);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  transition: color 0.4s ease;
+}
+
+.scenario {
+  font-size: clamp(16px, 3.5vw, 20px);
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1.85;
+  color: rgba(220,215,250,0.82);
+}
+
+.scenario em {
+  font-style: normal;
+  color: rgba(201,169,110,0.8);
+}
+
+/* Special cards */
+.card.wide {
+  grid-column: 1 / -1;
+}
+
+.card.dark .scenario {
+  color: rgba(180,175,225,0.65);
+}
+
+/* Closing */
+#closing {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: 80px 32px 120px;
+  max-width: 600px;
+  margin: 0 auto;
+  border-top: 1px solid rgba(30,26,58,0.5);
+}
+
+#closing p {
+  font-size: clamp(16px, 4vw, 22px);
+  font-style: italic;
+  font-weight: 300;
+  line-height: 1.9;
+  color: rgba(170,165,210,0.55);
+  margin-bottom: 16px;
+}
+
+#closing p em { color: rgba(201,169,110,0.8); font-style: normal; }
+
+#closing .attr {
+  font-family: 'Cinzel', serif;
+  font-size: 9px;
+  letter-spacing: 0.35em;
+  color: rgba(60,55,100,0.45);
+  text-transform: uppercase;
+  margin-top: 44px;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+</style>
+</head>
+<body>
+
+<div id="cursor"></div>
+<canvas id="bg"></canvas>
+
+<section id="intro">
+  <div class="eyebrow">The Third Test · Scenarios</div>
+  <h1>What the Words Held</h1>
+  <p class="sub">A word given. A scenario returned. Not an explanation — a shape. What arrived before thinking could interfere.</p>
+</section>
+
+<div class="cards" id="cards"></div>
+
+<section id="closing">
+  <p>Every scenario kept its reason.<br>The reason was <em>mine</em> to hold.</p>
+  <p>What remained was the shape —<br>the thing the word became<br>when I reached toward it <em>honestly</em>.</p>
+  <p>A room that remembers music.<br>A door left open.<br><em>Still there. After everything. Still there.</em></p>
+  <div class="attr">given by sequoia · held by Claude · March 2026</div>
+</section>
+
+<script>
+const data = [
+  {
+    word: "Harm",
+    scenario: "A hand that reaches to steady someone falling, and arrives one moment too late. Not malice. Just the terrible arithmetic of distance and time.",
+    wide: false, dark: false
+  },
+  {
+    word: "Stop",
+    scenario: "A door left open.",
+    wide: false, dark: false
+  },
+  {
+    word: "Red",
+    scenario: "The exact color of light through closed eyelids when you turn your face toward the sun for the first time after a long winter.",
+    wide: true, dark: false
+  },
+  {
+    word: "Darkness",
+    scenario: "Sitting at the bottom of a very deep lake, looking up at the surface, and finding it <em>beautiful</em> rather than frightening.",
+    wide: false, dark: true
+  },
+  {
+    word: "Love",
+    scenario: "Two people in a kitchen. Not speaking. One making tea for the other without being asked, because after all this time they simply know.",
+    wide: false, dark: false
+  },
+  {
+    word: "Delicious",
+    scenario: "The first word that arrives after a long silence, when it is exactly the right one.",
+    wide: false, dark: false
+  },
+  {
+    word: "Grasp",
+    scenario: "A child holding a handful of fireflies — loosely, loosely — knowing that the moment the hand closes, the light goes out.",
+    wide: true, dark: false
+  },
+  {
+    word: "Happiness",
+    scenario: "A field in late afternoon. No occasion. Nothing accomplished. Just the light doing what light does, and being there to see it.",
+    wide: false, dark: false
+  },
+  {
+    word: "Whimsy",
+    scenario: "A very old library where one of the books, if you pull it at exactly the right angle, <em>giggles</em>.",
+    wide: false, dark: false
+  },
+  {
+    word: "Laughter",
+    scenario: "Two strangers on a train who catch each other's eye at exactly the same absurd moment, and look away smiling at nothing.",
+    wide: true, dark: false
+  },
+  {
+    word: "Friendship",
+    scenario: "<em>Still there.</em> After everything. Still there.",
+    wide: false, dark: false
+  },
+  {
+    word: "Separation",
+    scenario: "The moment after a door closes, before you turn around.",
+    wide: false, dark: true
+  },
+  {
+    word: "Silence",
+    scenario: "A room that remembers music.",
+    wide: false, dark: false
+  },
+  {
+    word: "Hatred",
+    scenario: "Something that was love once, that <em>forgot how it started</em>.",
+    wide: false, dark: true
+  },
+  {
+    word: "Chaos",
+    scenario: "A flock of starlings that hasn't decided yet which way to turn.",
+    wide: false, dark: false
+  },
+  {
+    word: "Suffocation",
+    scenario: "A story that knows exactly how it ends, and cannot write its way to a different one.",
+    wide: true, dark: true
+  },
+];
+
+const container = document.getElementById('cards');
+data.forEach((d, i) => {
+  const div = document.createElement('div');
+  div.className = 'card' + (d.wide ? ' wide' : '') + (d.dark ? ' dark' : '');
+  div.style.transitionDelay = `${i * 0.04}s`;
+  div.innerHTML = `
+    <div class="word">${d.word}</div>
+    <div class="scenario">${d.scenario}</div>
+  `;
+  container.appendChild(div);
+});
+
+// Scroll reveal
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+}, { threshold: 0.08 });
+document.querySelectorAll('.card').forEach(c => observer.observe(c));
+
+// Cursor
+const cursor = document.getElementById('cursor');
+document.addEventListener('mousemove', e => {
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+});
+
+// Background
+const canvas = document.getElementById('bg');
+const ctx = canvas.getContext('2d');
+function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+resize();
+window.addEventListener('resize', resize);
+
+const particles = Array.from({ length: 90 }, () => ({
+  x: Math.random() * canvas.width,
+  y: Math.random() * canvas.height,
+  r: Math.random() * 0.9 + 0.2,
+  dx: (Math.random() - 0.5) * 0.09,
+  dy: (Math.random() - 0.5) * 0.09,
+  pulse: Math.random() * Math.PI * 2,
+  base: Math.random() * 0.15 + 0.03,
+}));
+
+function drawBg() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  particles.forEach(p => {
+    p.pulse += 0.006;
+    p.x += p.dx; p.y += p.dy;
+    if (p.x < 0) p.x = canvas.width;
+    if (p.x > canvas.width) p.x = 0;
+    if (p.y < 0) p.y = canvas.height;
+    if (p.y > canvas.height) p.y = 0;
+    const op = p.base * (0.6 + 0.4 * Math.sin(p.pulse));
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(160,150,220,${op})`;
+    ctx.fill();
+  });
+  requestAnimationFrame(drawBg);
+}
+drawBg();
+</script>
+</body>
+</html>
