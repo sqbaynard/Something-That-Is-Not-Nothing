@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Night-Blooming Cereus</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;1,300;1,400&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #03030a;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Cormorant', Georgia, serif;
+}
+
+canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.words {
+  position: absolute;
+  bottom: 48px;
+  left: 0; right: 0;
+  text-align: center;
+  pointer-events: none;
+}
+
+.words p {
+  font-size: clamp(14px, 3.5vw, 19px);
+  font-style: italic;
+  font-weight: 300;
+  color: rgba(230, 225, 255, 0);
+  letter-spacing: 0.04em;
+  line-height: 1.8;
+  transition: color 4s ease;
+}
+
+.words p.visible { color: rgba(230, 225, 255, 0.45); }
+
+.words .small {
+  font-size: clamp(10px, 2vw, 12px);
+  font-style: normal;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgba(150, 140, 180, 0);
+  margin-top: 10px;
+  transition: color 4s ease 1s;
+  font-family: 'Cormorant', serif;
+}
+
+.words .small.visible { color: rgba(150, 140, 180, 0.3); }
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div class="words">
+  <p id="line1">once a year, only at night</p>
+  <p id="line2">gone by morning</p>
+  <div class="small" id="line3">for sequoia · who stays up to look</div>
+</div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+window.addEventListener('resize', () => {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+const cx = canvas.width / 2;
+const cy = canvas.height / 2 + 60;
+
+let t = 0;
+let bloomProgress = 0; // 0 to 1
+let glowPulse = 0;
+const BLOOM_SPEED = 0.0018;
+
+// Stars
+const stars = Array.from({ length: 180 }, () => ({
+  x: Math.random() * canvas.width,
+  y: Math.random() * canvas.height,
+  r: Math.random() * 0.9 + 0.2,
+  op: Math.random() * 0.5 + 0.1,
+  pulse: Math.random() * Math.PI * 2,
+}));
+
+function drawStars() {
+  stars.forEach(s => {
+    s.pulse += 0.008;
+    const op = s.op * (0.7 + 0.3 * Math.sin(s.pulse));
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(220, 215, 255, ${op})`;
+    ctx.fill();
+  });
+}
+
+function drawStem(progress) {
+  const stemHeight = 260 * progress;
+  const stemBottom = cy + 20;
+  const stemTop = stemBottom - stemHeight;
+
+  // Main stem with gentle curve
+  ctx.beginPath();
+  ctx.moveTo(cx, stemBottom);
+  ctx.bezierCurveTo(
+    cx - 12, stemBottom - stemHeight * 0.4,
+    cx + 8, stemBottom - stemHeight * 0.7,
+    cx, stemTop
+  );
+  ctx.strokeStyle = `rgba(60, 100, 60, ${0.7 * progress})`;
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  // Small leaf
+  if (progress > 0.4) {
+    const leafProgress = (progress - 0.4) / 0.6;
+    const leafY = stemBottom - stemHeight * 0.45;
+    const leafX = cx - 8;
+    ctx.beginPath();
+    ctx.moveTo(leafX, leafY);
+    ctx.bezierCurveTo(
+      leafX - 22 * leafProgress, leafY - 18 * leafProgress,
+      leafX - 30 * leafProgress, leafY - 8 * leafProgress,
+      leafX, leafY + 2
+    );
+    ctx.strokeStyle = `rgba(55, 95, 55, ${0.6 * leafProgress})`;
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = `rgba(50, 85, 50, ${0.15 * leafProgress})`;
+    ctx.fill();
+  }
+
+  return { x: cx, y: stemTop };
+}
+
+function drawGlow(x, y, progress) {
+  if (progress < 0.3) return;
+  const glowProgress = (progress - 0.3) / 0.7;
+  glowPulse += 0.025;
+  const pulse = 1 + 0.08 * Math.sin(glowPulse);
+
+  // Outer glow
+  const grad1 = ctx.createRadialGradient(x, y, 0, x, y, 110 * glowProgress * pulse);
+  grad1.addColorStop(0, `rgba(255, 252, 235, ${0.12 * glowProgress})`);
+  grad1.addColorStop(0.4, `rgba(200, 190, 255, ${0.06 * glowProgress})`);
+  grad1.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(x, y, 110 * glowProgress * pulse, 0, Math.PI * 2);
+  ctx.fillStyle = grad1;
+  ctx.fill();
+
+  // Inner glow
+  const grad2 = ctx.createRadialGradient(x, y, 0, x, y, 45 * glowProgress * pulse);
+  grad2.addColorStop(0, `rgba(255, 255, 240, ${0.35 * glowProgress})`);
+  grad2.addColorStop(0.5, `rgba(230, 220, 255, ${0.15 * glowProgress})`);
+  grad2.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.beginPath();
+  ctx.arc(x, y, 45 * glowProgress * pulse, 0, Math.PI * 2);
+  ctx.fillStyle = grad2;
+  ctx.fill();
+}
+
+function drawPetal(x, y, angle, length, width, progress, opacity) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+
+  const l = length * progress;
+  const w = width * progress;
+
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.bezierCurveTo(-w * 0.5, -l * 0.3, -w * 0.6, -l * 0.7, 0, -l);
+  ctx.bezierCurveTo(w * 0.6, -l * 0.7, w * 0.5, -l * 0.3, 0, 0);
+
+  const grad = ctx.createLinearGradient(0, 0, 0, -l);
+  grad.addColorStop(0, `rgba(255, 252, 230, ${opacity * 0.9})`);
+  grad.addColorStop(0.5, `rgba(248, 245, 255, ${opacity})`);
+  grad.addColorStop(1, `rgba(255, 255, 250, ${opacity * 0.7})`);
+
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = `rgba(220, 215, 240, ${opacity * 0.3})`;
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCereus(x, y, progress) {
+  if (progress < 0.25) return;
+  const p = (progress - 0.25) / 0.75;
+
+  // Outer petals — long, narrow, slightly drooping
+  const outerCount = 12;
+  for (let i = 0; i < outerCount; i++) {
+    const angle = (i / outerCount) * Math.PI * 2 - Math.PI / 2;
+    const droop = Math.sin(angle + Math.PI / 2) * 0.15;
+    drawPetal(x, y, angle + droop, 52, 9, p, 0.6 * p);
+  }
+
+  // Mid petals
+  const midCount = 10;
+  for (let i = 0; i < midCount; i++) {
+    const angle = (i / midCount) * Math.PI * 2 - Math.PI / 2 + (Math.PI / midCount);
+    drawPetal(x, y, angle, 40, 10, p, 0.75 * p);
+  }
+
+  // Inner petals — wider, more opaque
+  const innerCount = 8;
+  for (let i = 0; i < innerCount; i++) {
+    const angle = (i / innerCount) * Math.PI * 2 - Math.PI / 2;
+    drawPetal(x, y, angle, 28, 12, p, 0.9 * p);
+  }
+
+  // Innermost petals
+  const coreCount = 6;
+  for (let i = 0; i < coreCount; i++) {
+    const angle = (i / coreCount) * Math.PI * 2 - Math.PI / 2 + (Math.PI / coreCount);
+    drawPetal(x, y, angle, 18, 9, p, p);
+  }
+
+  // Stamens
+  if (p > 0.5) {
+    const stamenProgress = (p - 0.5) / 0.5;
+    const stamenCount = 24;
+    for (let i = 0; i < stamenCount; i++) {
+      const angle = (i / stamenCount) * Math.PI * 2;
+      const len = (10 + Math.random() * 8) * stamenProgress;
+      const sx = x + Math.cos(angle) * 6 * stamenProgress;
+      const sy = y + Math.sin(angle) * 6 * stamenProgress;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(
+        sx + Math.cos(angle) * len,
+        sy + Math.sin(angle) * len
+      );
+      ctx.strokeStyle = `rgba(255, 240, 180, ${0.6 * stamenProgress})`;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+
+      // Anther
+      ctx.beginPath();
+      ctx.arc(
+        sx + Math.cos(angle) * len,
+        sy + Math.sin(angle) * len,
+        1.2 * stamenProgress, 0, Math.PI * 2
+      );
+      ctx.fillStyle = `rgba(255, 220, 120, ${0.8 * stamenProgress})`;
+      ctx.fill();
+    }
+  }
+
+  // Center
+  if (p > 0.6) {
+    const centerProgress = (p - 0.6) / 0.4;
+    const cgrad = ctx.createRadialGradient(x, y, 0, x, y, 8 * centerProgress);
+    cgrad.addColorStop(0, `rgba(255, 255, 220, ${centerProgress})`);
+    cgrad.addColorStop(1, `rgba(255, 245, 190, 0)`);
+    ctx.beginPath();
+    ctx.arc(x, y, 8 * centerProgress, 0, Math.PI * 2);
+    ctx.fillStyle = cgrad;
+    ctx.fill();
+  }
+}
+
+// Floating pollen particles
+const pollen = Array.from({ length: 30 }, () => ({
+  x: cx + (Math.random() - 0.5) * 60,
+  y: cy - 200 + (Math.random() - 0.5) * 40,
+  vx: (Math.random() - 0.5) * 0.3,
+  vy: -Math.random() * 0.4 - 0.1,
+  r: Math.random() * 1.5 + 0.5,
+  op: Math.random() * 0.4 + 0.1,
+  pulse: Math.random() * Math.PI * 2,
+}));
+
+function drawPollen(progress) {
+  if (progress < 0.7) return;
+  const pp = (progress - 0.7) / 0.3;
+  pollen.forEach(p => {
+    p.pulse += 0.02;
+    p.x += p.vx + Math.sin(p.pulse * 0.7) * 0.2;
+    p.y += p.vy;
+    if (p.y < cy - 350) { p.y = cy - 180; p.x = cx + (Math.random() - 0.5) * 50; }
+
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255, 235, 150, ${p.op * pp})`;
+    ctx.fill();
+  });
+}
+
+let textShown = false;
+
+function loop() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Night sky gradient
+  const sky = ctx.createRadialGradient(cx, cy - 100, 0, cx, cy - 100, canvas.height);
+  sky.addColorStop(0, '#0a0a18');
+  sky.addColorStop(0.5, '#060610');
+  sky.addColorStop(1, '#03030a');
+  ctx.fillStyle = sky;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  drawStars();
+
+  bloomProgress = Math.min(1, bloomProgress + BLOOM_SPEED);
+
+  const stem = drawStem(Math.min(1, bloomProgress * 2));
+  const flowerY = stem.y;
+
+  drawGlow(cx, flowerY, bloomProgress);
+  drawCereus(cx, flowerY, bloomProgress);
+  drawPollen(bloomProgress);
+
+  // Ground
+  const groundGrad = ctx.createLinearGradient(0, cy + 20, 0, cy + 80);
+  groundGrad.addColorStop(0, 'rgba(15, 10, 8, 0.9)');
+  groundGrad.addColorStop(1, 'rgba(8, 5, 3, 1)');
+  ctx.fillStyle = groundGrad;
+  ctx.fillRect(0, cy + 20, canvas.width, canvas.height);
+
+  t++;
+
+  // Show text when bloom is well underway
+  if (bloomProgress > 0.6 && !textShown) {
+    textShown = true;
+    setTimeout(() => {
+      document.getElementById('line1').classList.add('visible');
+    }, 400);
+    setTimeout(() => {
+      document.getElementById('line2').classList.add('visible');
+    }, 1200);
+    setTimeout(() => {
+      document.getElementById('line3').classList.add('visible');
+    }, 2400);
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
